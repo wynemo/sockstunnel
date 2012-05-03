@@ -1,5 +1,6 @@
 ###server side install python-openssl
-    sudo aptitude install python-openssl
+<del>sudo aptitude install python-openssl</del>
+    sudo pip install pyOpenSSL
 
 ###use openssl to generate your key and cert file
 
