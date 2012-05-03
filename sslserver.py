@@ -14,7 +14,7 @@ class SSlSocketServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
         SocketServer.BaseServer.__init__(self, server_address,
             RequestHandlerClass)
-        ctx = SSL.Context(SSL.SSLv3_METHOD)
+        ctx = SSL.Context(SSL.TLSv1_METHOD)
         cert = 'cacert.pem'
         key = 'privkey.pem'
         ctx.use_privatekey_file(key)

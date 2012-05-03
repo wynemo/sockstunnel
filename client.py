@@ -47,7 +47,7 @@ class Encoder(SocketServer.StreamRequestHandler):
             try:
                 if mode == 1:  # 1. Tcp connect
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    remote.connect(('106.187.52.227', 9999))
+                    remote.connect('your_server_ip', 9999))
                     sslSocket = socket.ssl(remote)
                     #self.log1(' Tcp connect to '+addr+' '+str(port[0]))
                 else:
