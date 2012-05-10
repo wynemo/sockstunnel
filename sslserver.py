@@ -56,8 +56,11 @@ class Decoder(SocketServer.StreamRequestHandler):
             remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             remote.connect((data[:pos], int(data[pos+1:])))
             socket1.send('success')
-            self.handle_tcp(socket1,remote)
-            remote.close()
+            try:
+                self.handle_tcp(socket1,remote)
+            finally:
+                remote.close()
+
 def main():
     server = SSlSocketServer(('0.0.0.0', 9999), Decoder)
     server.serve_forever()
