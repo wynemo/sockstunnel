@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 #coding:utf-8
 import socket, sys, select, SocketServer, struct, time
 
@@ -20,13 +20,19 @@ class Encoder(SocketServer.StreamRequestHandler):
                 if rt == 'success':
                     init = 1
                 continue
-            if sock in r:
-                if sslsocket.write(sock.recv(4096)) <= 0:
+            try:
+                if sock in r:
+                    if sslsocket.write(sock.recv(4096)) <= 0:
+                        break
+                if remote in r:
+                    if sock.send(sslsocket.read(4096)) <= 0:
+                        break
+            except socket.sslerror, x:
+                if x.args[0] == socket.SSL_ERROR_EOF:
                     break
-            if remote in r:     
-                if sock.send(sslsocket.read(4096)) <= 0:
-                    break
-                
+                else:
+                    raise
+
     def handle(self):
         try:
             self.log1('socks connection from '+str(self.client_address))
@@ -47,7 +53,7 @@ class Encoder(SocketServer.StreamRequestHandler):
             try:
                 if mode == 1:  # 1. Tcp connect
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    remote.connect('your_server_ip', 9999))
+                    remote.connect(('server_ip', 9999))
                     sslSocket = socket.ssl(remote)
                     #self.log1(' Tcp connect to '+addr+' '+str(port[0]))
                 else:
@@ -63,12 +69,11 @@ class Encoder(SocketServer.StreamRequestHandler):
             if reply[1] == '\x00':  # Success
                 if mode == 1:    # 1. Tcp connect
                     self.handle_tcp(sock, remote,sslSocket,addr,port[0])
-                    remote.close()
-        except socket.error:
-            print 'socket error '
+        finally:
+            remote.close()
+
 def main():
     server = ThreadingTCPServer(('127.0.0.1', 7000), Encoder)
     server.serve_forever()
 if __name__ == '__main__':
     main()
-

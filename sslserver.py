@@ -37,26 +37,27 @@ class Decoder(SocketServer.StreamRequestHandler):
         fdset = [sock, remote]
         while True:
             r, w, e = select.select(fdset, [], [])
-            if sock in r:
-                if remote.send((sock.recv(4096))) <= 0:
-                    break
-            if remote in r:     
-                if sock.send((remote.recv(4096))) <= 0:
-                    break 
+            try:
+                if sock in r:
+                    if remote.send(sock.recv(4096)) <= 0:
+                        break
+                if remote in r:
+                    if sock.send(remote.recv(4096)) <= 0:
+                        break 
+            except SSL.SysCallError, e:
+                break
+                    
 
     def handle(self):
-        try:
-            socket1 = self.connection
-            data = socket1.recv(4096)
-            pos = data.find(',')
-            if(pos != -1):
-                remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                remote.connect((data[:pos], int(data[pos+1:])))
-                socket1.send('success')
-                self.handle_tcp(socket1,remote)
-                remote.close()
-        except Exception, e:
-            print 'socket error',e
+        socket1 = self.connection
+        data = socket1.recv(4096)
+        pos = data.find(',')
+        if(pos != -1):
+            remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            remote.connect((data[:pos], int(data[pos+1:])))
+            socket1.send('success')
+            self.handle_tcp(socket1,remote)
+            remote.close()
 def main():
     server = SSlSocketServer(('0.0.0.0', 9999), Decoder)
     server.serve_forever()
