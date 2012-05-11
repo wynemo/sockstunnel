@@ -6,33 +6,19 @@
 
 #todo fix "Unexpected EOF"
 
-from OpenSSL import SSL
-import socket, SocketServer, select
+import ssl, socket, SocketServer, select
 
 class SSlSocketServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-
-    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
-        SocketServer.BaseServer.__init__(self, server_address,
-            RequestHandlerClass)
-        ctx = SSL.Context(SSL.TLSv1_METHOD)
-        cert = 'cacert.pem'
-        key = 'privkey.pem'
-        ctx.use_privatekey_file(key)
-        ctx.use_certificate_file(cert)
-        self.socket = SSL.Connection(ctx, socket.socket(self.address_family,
-            self.socket_type))
-        if bind_and_activate:
-            self.server_bind()
-            self.server_activate()
-    def shutdown_request(self,request):
-        request.shutdown()
+    def get_request(self):#overwritten
+        newsocket, fromaddr = self.socket.accept()
+        connstream = ssl.wrap_socket(newsocket,
+            server_side=True,
+            certfile="cacert.pem",
+            keyfile="privkey.pem",
+            ssl_version=ssl.PROTOCOL_TLSv1)
+        return connstream, fromaddr
 
 class Decoder(SocketServer.StreamRequestHandler):
-    def setup(self):
-        self.connection = self.request
-        self.rfile = socket._fileobject(self.request, "rb", self.rbufsize)
-        self.wfile = socket._fileobject(self.request, "wb", self.wbufsize)
-
     def handle_tcp(self, sock, remote):
         fdset = [sock, remote]
         while True:
@@ -44,9 +30,11 @@ class Decoder(SocketServer.StreamRequestHandler):
                 if remote in r:
                     if sock.send(remote.recv(4096)) <= 0:
                         break 
-            except SSL.SysCallError, e:
-                break
-                    
+            except socket.sslerror, x:
+                if x.args[0] == socket.SSL_ERROR_EOF:
+                    break
+                else:
+                    raise
 
     def handle(self):
         socket1 = self.connection
@@ -54,7 +42,11 @@ class Decoder(SocketServer.StreamRequestHandler):
         pos = data.find(',')
         if(pos != -1):
             remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            remote.connect((data[:pos], int(data[pos+1:])))
+            try:
+                remote.connect((data[:pos], int(data[pos+1:])))
+            except:
+                print data[:pos],int(data[pos+1:])
+                return
             socket1.send('success')
             try:
                 self.handle_tcp(socket1,remote)

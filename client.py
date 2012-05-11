@@ -70,7 +70,10 @@ class Encoder(SocketServer.StreamRequestHandler):
                 if mode == 1:    # 1. Tcp connect
                     self.handle_tcp(sock, remote,sslSocket,addr,port[0])
         finally:
-            sslSocket.close()
+            try:
+                sslSocket.close()
+            except:
+                pass
 
 def main():
     server = ThreadingTCPServer(('127.0.0.1', 7000), Encoder)
