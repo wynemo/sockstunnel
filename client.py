@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #coding:utf-8
-import socket, sys, select, SocketServer, struct, time
+import socket, sys, select, SocketServer, struct, time, ssl
 
   
 class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer): pass
@@ -53,8 +53,8 @@ class Encoder(SocketServer.StreamRequestHandler):
             try:
                 if mode == 1:  # 1. Tcp connect
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    remote.connect(('server_ip', 9999))
-                    sslSocket = socket.ssl(remote)
+                    sslSocket = ssl.wrap_socket(remote,ssl_version=ssl.PROTOCOL_TLSv1)
+                    sslSocket.connect(('server_ip', 9999))
                     #self.log1(' Tcp connect to '+addr+' '+str(port[0]))
                 else:
                     reply = b"\x05\x07\x00\x01" # Command not supported
@@ -70,7 +70,7 @@ class Encoder(SocketServer.StreamRequestHandler):
                 if mode == 1:    # 1. Tcp connect
                     self.handle_tcp(sock, remote,sslSocket,addr,port[0])
         finally:
-            remote.close()
+            sslSocket.close()
 
 def main():
     server = ThreadingTCPServer(('127.0.0.1', 7000), Encoder)
