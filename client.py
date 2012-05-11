@@ -7,9 +7,9 @@ class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer): p
 class Encoder(SocketServer.StreamRequestHandler):
     def log1(self,str1):
         print(time.asctime(time.localtime(time.time()))),' ',str1
-    def handle_tcp(self, sock, remote,sslsocket,addr1,port1):
+    def handle_tcp(self, sock,sslsocket,addr1,port1):
         init = 0
-        fdset = [sock, remote]
+        fdset = [sock, sslsocket]
 
         while True:
             r, w, e = select.select(fdset, [], [])
@@ -24,7 +24,7 @@ class Encoder(SocketServer.StreamRequestHandler):
                 if sock in r:
                     if sslsocket.write(sock.recv(4096)) <= 0:
                         break
-                if remote in r:
+                if sslsocket in r:
                     if sock.send(sslsocket.read(4096)) <= 0:
                         break
             except socket.sslerror, x:
@@ -68,7 +68,7 @@ class Encoder(SocketServer.StreamRequestHandler):
             # 3. Transfering
             if reply[1] == '\x00':  # Success
                 if mode == 1:    # 1. Tcp connect
-                    self.handle_tcp(sock, remote,sslSocket,addr,port[0])
+                    self.handle_tcp(sock,sslSocket,addr,port[0])
         finally:
             try:
                 sslSocket.close()
