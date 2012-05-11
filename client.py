@@ -15,17 +15,17 @@ class Encoder(SocketServer.StreamRequestHandler):
             r, w, e = select.select(fdset, [], [])
             if 0 == init:
                 data = addr1 + ',' + str(port1)
-                rv = sslsocket.write(data)
-                rt = sslsocket.read(10)
+                rv = sslsocket.send(data)
+                rt = sslsocket.recv(10)
                 if rt == 'success':
                     init = 1
                 continue
             try:
                 if sock in r:
-                    if sslsocket.write(sock.recv(4096)) <= 0:
+                    if sslsocket.send(sock.recv(4096)) <= 0:
                         break
                 if sslsocket in r:
-                    if sock.send(sslsocket.read(4096)) <= 0:
+                    if sock.send(sslsocket.recv(4096)) <= 0:
                         break
             except socket.sslerror, x:
                 if x.args[0] == socket.SSL_ERROR_EOF:
