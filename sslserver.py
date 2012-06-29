@@ -1,72 +1,96 @@
-#install openssl
-#sudo aptitude install python-openssl
+import socket
+import tornado.ioloop
+import tornado.netutil
+import ssl
 
-#modified from http://xiaoxia.org/2011/03/29/written-by-python-socks5-server/ 
-#copyring by original author
+def write_to(stream):
+    def on_data(data):
+        if len(data):
+            if not stream.closed():
+                stream.write(data)
+    return on_data
 
-import ssl, socket, SocketServer, select
+def pipe(stream_a, stream_b):
+    def on_a_close():
+        print 'client close'
+        stream_b.close()
+    def on_b_close():
+        print 'remote close'
+        stream_a.close()
+    def re_read(data):
+        if len(data):
+            if not stream_b.closed():
+                stream_b.write(data)
+        if not stream_a.closed() and not stream_b.closed():
+            stream_a.read_bytes(4096,re_read,write_to(stream_b))
+    writer_a = write_to(stream_a)
+    writer_b = write_to(stream_b)
+    stream_a.set_close_callback(on_a_close)
+    stream_b.set_close_callback(on_b_close)
+    if stream_a.closed():
+        stream_b.close()
+    if stream_b.closed():
+        stream_a.close()
+    #stream_a.read_until_close(writer_b,writer_b)
+    if not stream_a.closed() and not stream_b.closed():
+        stream_a.read_bytes(4096,re_read,writer_b)
+        stream_b.read_until_close(writer_a,writer_a)
 
-class SSlSocketServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-    def get_request(self):#overwritten
-        newsocket, fromaddr = self.socket.accept()
-        connstream = ssl.wrap_socket(newsocket,
-            server_side=True,
-            certfile="cacert.pem",
-            keyfile="privkey.pem",
-            ssl_version=ssl.PROTOCOL_TLSv1)
-        return connstream, fromaddr
+class DirectConnector():
 
-class Decoder(SocketServer.StreamRequestHandler):
-    def handle_tcp(self, sock, remote):
-        fdset = [sock, remote]
-        while True:
-            r, w, e = select.select(fdset, [], [])
-            try:
-                if sock in r:
-                    if remote.send(sock.recv(4096)) <= 0:
-                        break
-                if remote in r:
-                    if sock.send(remote.recv(4096)) <= 0:
-                        break 
-            except socket.sslerror, x:
-                if x.args[0] == socket.SSL_ERROR_EOF:
-                    break
-                else:
-                    raise
+    def connect(self, host, port, callback):
 
-    def handle(self):
-        socket1 = self.connection
-        data = socket1.recv(4096)
+        def on_close():
+            callback(None)
+
+        def on_connected():
+            stream.set_close_callback(None)
+            callback(stream)
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        stream = tornado.iostream.IOStream(s)
+        stream.set_close_callback(on_close)
+        stream.connect((host, port), on_connected)
+        print host,port
+
+class ProxyHandler:
+
+    def on_self_header(self,remote_info):
+        data = remote_info[:-2]
         pos = data.find(',')
-        if(pos != -1):
-            remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                remote.connect((data[:pos], int(data[pos+1:])))
-            except:
-                print data[:pos],int(data[pos+1:])
-                return
-            socket1.send('success')
-            try:
-                self.handle_tcp(socket1,remote)
-            finally:
-                remote.close()
+        addr = data[:pos]
+        port = int(data[pos+1:])
+        self.outgoing = self.connector.connect(addr, port, self.on_connected)
+
+    def on_connected(self, outgoing):
+        if outgoing is not None:
+            pipe(self.incoming, outgoing)
+        else:
+            self.incoming.close()
+
+    def __init__(self, stream, connector):
+        self.connector = connector
+
+        self.incoming = stream
+        self.incoming.read_until(b'\r\n', self.on_self_header)
+
+class ProxyServer(tornado.netutil.TCPServer):
+
+    def __init__(self, connector = None):
+        d1 = {"certfile": "cacert.pem","keyfile": "privkey.pem",
+            "ssl_version": ssl.PROTOCOL_TLSv1}
+        tornado.netutil.TCPServer.__init__(self,ssl_options=d1)
+        self.connector = DirectConnector()
+
+    def handle_stream(self, stream, address):
+        ProxyHandler(stream, self.connector)
 
 def main():
-    server = SSlSocketServer(('0.0.0.0', 9999), Decoder)
-    server.serve_forever()
-if __name__ == '__main__':
-    main()
+    port = 59999
+    host = '0.0.0.0'
+    connector = DirectConnector()
+    server = ProxyServer(connector)
+    server.listen(port, host)
+    tornado.ioloop.IOLoop.instance().start() 
 
-
-
-#now test server
-
-#import socket
-#s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#s.connect(('localhost', 9999))
-#sslSocket = socket.ssl(s)
-#print repr(sslSocket.server())
-#print repr(sslSocket.issuer())
-#sslSocket.write('Hello secure socket\n')
-#s.close()
-
+if __name__ == '__main__': main()

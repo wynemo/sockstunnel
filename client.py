@@ -8,18 +8,13 @@ class Encoder(SocketServer.StreamRequestHandler):
     def log1(self,str1):
         print(time.asctime(time.localtime(time.time()))),' ',str1
     def handle_tcp(self, sock,sslsocket,addr1,port1):
-        init = 0
         fdset = [sock, sslsocket]
+
+        data = addr1 + ',' + str(port1) + '\r\n'
+        rv = sslsocket.send(data)
 
         while True:
             r, w, e = select.select(fdset, [], [])
-            if 0 == init:
-                data = addr1 + ',' + str(port1)
-                rv = sslsocket.send(data)
-                rt = sslsocket.recv(10)
-                if rt == 'success':
-                    init = 1
-                continue
             try:
                 if sock in r:
                     if sslsocket.send(sock.recv(4096)) <= 0:
@@ -54,7 +49,7 @@ class Encoder(SocketServer.StreamRequestHandler):
                 if mode == 1:  # 1. Tcp connect
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sslSocket = ssl.wrap_socket(remote,ssl_version=ssl.PROTOCOL_TLSv1)
-                    sslSocket.connect(('server_ip', 9999))
+                    sslSocket.connect(('server_ip',59999))
                     #self.log1(' Tcp connect to '+addr+' '+str(port[0]))
                 else:
                     reply = b"\x05\x07\x00\x01" # Command not supported
