@@ -15,6 +15,7 @@ class Encoder(SocketServer.StreamRequestHandler):
 
         while True:
             r, w, e = select.select(fdset, [], [])
+            time.sleep(0.01)
             try:
                 if sock in r:
                     if sslsocket.send(sock.recv(4096)) <= 0:
