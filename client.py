@@ -1,37 +1,43 @@
 #!/usr/bin/env python
 #coding:utf-8
-import socket, sys, select, SocketServer, struct, time, ssl
+import socket
+import sys
+import select
+import SocketServer
+import struct
+import logging
+import ssl
 
-  
-class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer): pass
+class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+    pass
+
 class Encoder(SocketServer.StreamRequestHandler):
-    def log1(self,str1):
-        print(time.asctime(time.localtime(time.time()))),' ',str1
-    def handle_tcp(self, sock,sslsocket,addr1,port1):
-        fdset = [sock, sslsocket]
 
-        data = addr1 + ',' + str(port1) + '\r\n'
-        rv = sslsocket.send(data)
+    def handle_tcp(self, sock, ssl_socket, addr1, port1):
+        fdset = [sock, ssl_socket]
+
+        data = addr1 + ':' + str(port1) + '\r\n'
+        rv = ssl_socket.send(data)
+        logging.info('connecting to ' + addr1 + ':' + str(port1))
 
         while True:
             r, w, e = select.select(fdset, [], [])
-            time.sleep(0.01)
             try:
                 if sock in r:
-                    if sslsocket.send(sock.recv(4096)) <= 0:
+                    if ssl_socket.send(sock.recv(64*1024)) <= 0:
                         break
-                if sslsocket in r:
-                    if sock.send(sslsocket.recv(4096)) <= 0:
+                if ssl_socket in r:
+                    if sock.send(ssl_socket.recv(64*1024)) <= 0:
                         break
-            except socket.sslerror, x:
-                if x.args[0] == socket.SSL_ERROR_EOF:
+            except socket.sslerror as e:
+                if e.args[0] == socket.SSL_ERROR_EOF:
                     break
                 else:
                     raise
 
     def handle(self):
         try:
-            self.log1('socks connection from '+str(self.client_address))
+            logging.info('socks connection from ' + str(self.client_address))
             sock = self.connection
             # 1. Version
             sock.recv(262)
@@ -49,13 +55,13 @@ class Encoder(SocketServer.StreamRequestHandler):
             try:
                 if mode == 1:  # 1. Tcp connect
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sslSocket = ssl.wrap_socket(remote,ssl_version=ssl.PROTOCOL_TLSv1)
-                    sslSocket.connect(('server_ip',59999))
-                    #self.log1(' Tcp connect to '+addr+' '+str(port[0]))
+                    ssl_socket = ssl.wrap_socket(remote, ssl_version=ssl.PROTOCOL_TLSv1)
+                    i = 0
+                    l = [('server_ip', 51888)]
+                    ssl_socket.connect(l[i])
                 else:
                     reply = b"\x05\x07\x00\x01" # Command not supported
                 local = remote.getsockname()
-                #print 'local is ',local
                 reply += socket.inet_aton(local[0]) + struct.pack(">H", local[1])
             except socket.error:
                 # Connection refused
@@ -64,14 +70,18 @@ class Encoder(SocketServer.StreamRequestHandler):
             # 3. Transfering
             if reply[1] == '\x00':  # Success
                 if mode == 1:    # 1. Tcp connect
-                    self.handle_tcp(sock,sslSocket,addr,port[0])
+                    self.handle_tcp(sock, ssl_socket, addr, port[0])
         finally:
             try:
-                sslSocket.close()
+                ssl_socket.close()
             except:
                 pass
 
 def main():
+    level = logging.INFO
+    logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
+        datefmt='%m/%d/%Y %I:%M:%S %p',
+        level=level)
     server = ThreadingTCPServer(('127.0.0.1', 7000), Encoder)
     server.serve_forever()
 if __name__ == '__main__':
